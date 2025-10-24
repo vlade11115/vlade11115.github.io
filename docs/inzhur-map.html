@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>inzhur REIT Map</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+    <!-- Leaflet MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* Custom popup styling */
+        .custom-popup {
+            min-width: 200px;
+        }
+
+        .custom-popup h3 {
+            margin: 0 0 8px 0;
+            color: #2c3e50;
+            font-size: 16px;
+        }
+
+        .custom-popup p {
+            margin: 4px 0;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .custom-popup .category {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        /* Sidebar for location list */
+        .sidebar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            max-height: 80vh;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .sidebar h2 {
+            margin-bottom: 16px;
+            color: #2c3e50;
+            font-size: 20px;
+        }
+
+        .location-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .location-item:hover {
+            background: #e9ecef;
+        }
+
+        .location-item h4 {
+            margin: 0 0 4px 0;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+
+        .location-item .category-tag {
+            font-size: 11px;
+            color: #6c757d;
+        }
+
+        /* Toggle button for mobile */
+        .sidebar-toggle {
+            display: none;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            background: white;
+            border: 2px solid rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            padding: 10px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: calc(100% - 40px);
+                right: 20px;
+                left: 20px;
+                top: auto;
+                bottom: 20px;
+                max-height: 50vh;
+                transform: translateY(calc(100% + 40px));
+                transition: transform 0.3s ease;
+            }
+
+            .sidebar.active {
+                transform: translateY(0);
+            }
+
+            .sidebar-toggle {
+                display: block;
+            }
+        }
+
+        /* Custom marker cluster styling */
+        .marker-cluster-small,
+        .marker-cluster-medium,
+        .marker-cluster-large {
+            background-color: rgba(52, 152, 219, 0.6);
+        }
+
+        .marker-cluster-small div,
+        .marker-cluster-medium div,
+        .marker-cluster-large div {
+            background-color: rgba(52, 152, 219, 0.8);
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .marker-cluster {
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+
+<button class="sidebar-toggle" id="sidebarToggle">
+    Places
+</button>
+
+<div class="sidebar">
+    <h2>Працюючі активи</h2>
+    <div id="location-list"></div>
+</div>
+
+<!-- Leaflet JavaScript -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<!-- Leaflet MarkerCluster JavaScript -->
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script>
+    // Your data: Array of objects representing points of interest
+    const locations = [
+        {
+                "id": 1,
+                "name": "Супермаркет «Сільпо»",
+                "category": "Супермаркет",
+                "lat": 50.296695,
+                "lng": 30.531829,
+                "description": "Лісники, вул. Ватутіна, 170 — тематичний супермаркет із дизайном у стилі племен Амазонії та Африки.",
+                "details": "Відкрито: 23.12.2021, Площа: 3 604м²",
+                "color": "#27ae60"
+            },
+            {
+                "id": 2,
+                "name": "Супермаркет «Сільпо»",
+                "category": "Супермаркет",
+                "lat": 50.383302,
+                "lng": 30.387854,
+                "description": "Крюківщина, вул. Богуна Івана, 2А — супермаркет, присвячений географічним міфам і відкриттям.",
+                "details": "Відкрито: 14.04.2023, Площа: 3 317,2м²",
+                "color": "#27ae60"
+            },
+            {
+                "id": 3,
+                "name": "Супермаркет «Сільпо»",
+                "category": "Супермаркет",
+                // 50.42936198796048, 30.619702171437858
+                "lat": 50.42936198796048,
+                "lng": 30.619702171437858,
+                "description": "Київ, вул. Березнева, 12А — дизайн у стилі гри STALKER.",
+                "details": "Відкрито: 16.08.2022, Площа: 3 395м²",
+                "color": "#27ae60"
+            },
+            {
+                "id": 4,
+                "name": "Супермаркет «Сільпо»",
+                "category": "Супермаркет",
+                "lat": 50.388706011087464,
+                "lng": 30.24289666244574,
+                "description": "Білогородка, вул. Будівельна, 19 — супермаркет у стилі Гоблінкор.",
+                "details": "Відкрито: 13.10.2023, Площа: 3 003,9м²",
+                "color": "#27ae60"
+            },
+            {
+                "id": 5,
+                "name": "Супермаркет «Сільпо»",
+                "category": "Супермаркет",
+                "lat": 50.58344668160822,
+                "lng": 30.49627348857691,
+                "description": "Вишгород, вул. Набережна, 11 — Найпрогресивніший паровий супермаркет сучасності.",
+                "details": "Відкрито: 01.03.2019, Площа: 2 695,4м²",
+                "color": "#27ae60"
+            },
+            {
+                "id": 6,
+                "name": "Супермаркет «Фора»",
+                "category": "Супермаркет",
+                "lat": 50.540727078818925,
+                "lng": 30.1917132512708,
+                "description": "Буча, вул. Гмирі, 7Б — Об'єкт, побудований Inzhur.",
+                "details": "Відкрито: 19.04.2025, Площа: 2 000м²",
+                "color": "#27ae60"
+            },
+            {
+                "id": 7,
+                "name": "Ресторан McDonald’s",
+                "category": "Ресторан",
+                "lat": 50.29659723134015,
+                "lng": 30.532798614141647,
+                "description": "Лісники, вул. Ватутіна, 170 — ресторан із McDrive біля супермаркету «Сільпо».",
+                "details": "Відкрито: 07.11.2022, Площа: 468,1м²",
+                "color": "#e67e22"
+            },
+            {
+                "id": 8,
+                "name": "Ресторан McDonald’s",
+                "category": "Ресторан",
+                "lat": 50.383733451847526,
+                "lng": 30.38794458568011,
+                "description": "Крюківщина, вул. Богуна Івана, 2 — McDrive з двома лініями в’їзду.",
+                "details": "Відкрито: 29.06.2023, Площа: 470м²",
+                "color": "#e67e22"
+            },
+            {
+                "id": 9,
+                "name": "Ресторан McDonald’s",
+                "category": "Ресторан",
+                "lat": 50.346629337824524,
+                "lng": 30.28298363996121,
+                "description": "Боярка, вул. Магістральна, 38 — McDrive біля магазину «Сільпо».",
+                "details": "Відкрито: 02.11.2024, Площа: 471м²",
+                "color": "#e67e22"
+            }
+    ];
+
+    // Initialize the map
+    const map = L.map('map').setView([50.4501, 30.5234], 10);
+
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19
+    }).addTo(map);
+
+    // Create marker cluster group
+    const markerClusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 80,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true
+    });
+
+    // Store marker references for interaction
+    const markers = {};
+
+    // Custom icon function
+    function createCustomIcon(color) {
+        return L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="
+                    background-color: ${color};
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 50%;
+                    border: 3px solid white;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                "></div>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15],
+            popupAnchor: [0, -15]
+        });
+    }
+
+    // Add markers to the cluster group
+    locations.forEach(location => {
+        // Create marker with custom icon
+        const marker = L.marker([location.lat, location.lng], {
+            icon: createCustomIcon(location.color)
+        });
+
+        // Create popup content
+        const popupContent = `
+                <div class="custom-popup">
+                    <h3>${location.name}</h3>
+                    <p>${location.description}</p>
+                    <p><small>${location.details}</small></p>
+                    <span class="category" style="background: ${location.color}">${location.category}</span>
+                </div>
+            `;
+
+        marker.bindPopup(popupContent);
+
+        // Add marker to cluster group
+        markerClusterGroup.addLayer(marker);
+
+        // Store marker reference
+        markers[location.id] = marker;
+    });
+
+    // Add the cluster group to the map
+    map.addLayer(markerClusterGroup);
+
+    // Populate sidebar
+    const locationList = document.getElementById('location-list');
+    locations.forEach(location => {
+        const item = document.createElement('div');
+        item.className = 'location-item';
+        item.innerHTML = `
+                <h4>${location.name}</h4>
+                <div class="category-tag">${location.category}</div>
+            `;
+
+        // Add click event to zoom to location
+        item.addEventListener('click', () => {
+            map.setView([location.lat, location.lng], 16);
+            markers[location.id].openPopup();
+        });
+
+        locationList.appendChild(item);
+    });
+
+    // Optional: Fit map to show all markers
+    map.fitBounds(markerClusterGroup.getBounds().pad(0.1));
+
+    // Add a custom control button (example)
+    L.Control.ResetView = L.Control.extend({
+        onAdd: function (map) {
+            const btn = L.DomUtil.create('button');
+            btn.innerHTML = '🏠 Reset View';
+            btn.style.cssText = `
+                    background: white;
+                    border: 2px solid rgba(0,0,0,0.2);
+                    border-radius: 4px;
+                    padding: 5px 10px;
+                    font-size: 14px;
+                    cursor: pointer;
+                `;
+
+            btn.onclick = function () {
+                map.fitBounds(markerClusterGroup.getBounds().pad(0.1));
+            };
+
+            return btn;
+        }
+    });
+
+    new L.Control.ResetView({position: 'topleft'}).addTo(map);
+
+    // Mobile sidebar toggle functionality
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.querySelector('.sidebar');
+
+    sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('active');
+    });
+
+    // Close sidebar when clicking on a location item on mobile
+    document.querySelectorAll('.location-item').forEach(item => {
+        item.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                sidebar.classList.remove('active');
+            }
+        });
+    });
+</script>
+</body>
+</html>
